@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.env
+
+# Local data
+*.db
+*.sqlite
+*.sqlite3
+data/
+uploads/
+
+# Node / frontend
+node_modules/
+dist/
+build/
+.next/
+
+# Reference repos cloned locally; do not commit upstream code
+external/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
