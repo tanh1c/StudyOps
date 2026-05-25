@@ -4,7 +4,7 @@ from sqlmodel import Session, select
 
 from studyops_core.adapters.mock import MockHermesAdapter
 from studyops_core.models import AutonomyJob, Track
-from studyops_core.services.events import record_event
+from studyops_core.services.proposals import create_proposal_with_policy
 
 
 def run_daily_checkin(*, session: Session, user_id: str = 'usr_local', reason: str = 'manual_run') -> AutonomyJob:
@@ -24,6 +24,38 @@ def run_daily_checkin(*, session: Session, user_id: str = 'usr_local', reason: s
     tracks = session.exec(select(Track)).all()
     snapshot = {'active_tracks': [track.model_dump() for track in tracks]}
     output = MockHermesAdapter().run_daily_checkin(snapshot)
+
+    job.input_snapshot = snapshot
+    job.output = output
+    job.output_summary = output.get('job_summary')
+    job.status = 'succeeded'
+    job.completed_at = datetime.now(timezone.utc)
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
+def run_weekly_review(*, session: Session, user_id: str = 'usr_local', reason: str = 'manual_run') -> AutonomyJob:
+    now = datetime.now(timezone.utc)
+    job = AutonomyJob(
+        user_id=user_id,
+        job_type='weekly_review',
+        status='running',
+        reason=reason,
+        scheduled_for=now,
+        started_at=now,
+    )
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+
+    tracks = session.exec(select(Track)).all()
+    snapshot = {'active_tracks': [track.model_dump() for track in tracks]}
+    output = MockHermesAdapter().run_weekly_review(snapshot)
+
+    for proposal_data in output.get('proposals', []):
+        create_proposal_with_policy(session=session, user_id=user_id, **proposal_data)
 
     job.input_snapshot = snapshot
     job.output = output

@@ -51,10 +51,19 @@ class MockHermesAdapter:
 
     def run_weekly_review(self, snapshot: dict) -> dict:
         return {
-            'job_summary': 'Mock weekly review',
+            'job_summary': 'Data Mining needs priority this week.',
             'observations': [],
             'track_assessments': [],
-            'proposals': [],
+            'proposals': [
+                {
+                    'proposal_type': 'modify_plan',
+                    'title': 'Prioritize Data Mining this week',
+                    'summary': 'Move one project task later and add Data Mining review.',
+                    'rationale': 'Midterm is close and quiz score is low.',
+                    'evidence_event_ids': [],
+                    'proposed_changes': {'actions': [{'type': 'modify_active_plan'}]},
+                }
+            ],
         }
 
     def run_plan_rebalance(self, snapshot: dict, instruction: str) -> dict:

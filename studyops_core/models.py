@@ -122,13 +122,17 @@ class Plan(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utc_now)
 
 
-class Proposal(SQLModel, table=True):
+class AgentProposal(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
+    user_id: str = 'usr_local'
+    proposal_type: str
     title: str
+    summary: str
+    rationale: str
+    evidence_event_ids: list[int] = Field(default_factory=list, sa_column=Column(JSON))
+    proposed_changes: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     risk_level: str
     status: str = 'pending'
-    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
-    rationale: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
 
 
@@ -149,7 +153,9 @@ class AutonomyJob(SQLModel, table=True):
 
 class ApprovalRequest(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    proposal_id: int = Field(foreign_key='proposal.id')
+    proposal_id: int = Field(foreign_key='agentproposal.id')
+    user_id: str = 'usr_local'
+    required_for: str
     status: str = 'pending'
     decided_at: datetime | None = None
     created_at: datetime = Field(default_factory=utc_now)
