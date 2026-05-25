@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 
 from studyops_core.db import create_db_and_tables
 from studyops_core.routers import autonomy, health, knowledge, profile, quizzes, tasks, tracks
@@ -21,3 +22,8 @@ def on_startup():
 @app.get('/health')
 def health():
     return {'status': 'ok'}
+
+
+@app.get('/ui')
+def web_shell():
+    return FileResponse('studyops_core/static/index.html')
