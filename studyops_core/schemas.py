@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel
 
@@ -55,3 +55,19 @@ class QuizGenerate(BaseModel):
 
 class QuizAttemptCreate(BaseModel):
     answers: list[dict]
+
+
+class StudyTaskCreate(BaseModel):
+    track_id: int
+    title: str
+    description: str | None = None
+    task_type: str = 'review'
+    scheduled_for: date | None = None
+    estimated_minutes: int | None = None
+    priority: str = 'medium'
+    created_by: str = 'user'
+
+
+class AutonomyRunRequest(BaseModel):
+    job_type: str
+    reason: str = 'manual_run'

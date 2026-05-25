@@ -103,7 +103,13 @@ class StudyTask(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     track_id: int | None = Field(default=None, foreign_key='track.id')
     title: str
+    description: str | None = None
+    task_type: str = 'review'
     status: str = 'pending'
+    scheduled_for: datetime | None = None
+    estimated_minutes: int | None = None
+    priority: str = 'medium'
+    created_by: str = 'user'
     due_at: datetime | None = None
     created_at: datetime = Field(default_factory=utc_now)
 
@@ -128,10 +134,16 @@ class Proposal(SQLModel, table=True):
 
 class AutonomyJob(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    status: str = 'pending'
+    user_id: str = 'usr_local'
     job_type: str
+    status: str = 'pending'
+    reason: str = 'manual_run'
     input_snapshot: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     output: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    output_summary: str | None = None
+    scheduled_for: datetime | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
     created_at: datetime = Field(default_factory=utc_now)
 
 
