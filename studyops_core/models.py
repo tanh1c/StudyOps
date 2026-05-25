@@ -9,10 +9,44 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class UserProfile(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    display_name: str
+    education_level: str = 'university'
+    major: str | None = None
+    semester: str | None = None
+    timezone: str = 'Asia/Ho_Chi_Minh'
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+
+
 class Track(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    name: str
+    user_id: str = 'usr_local'
     type: str
+    title: str
+    description: str | None = None
+    priority: str = 'medium'
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class Goal(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    track_id: int = Field(foreign_key='track.id')
+    title: str
+    description: str | None = None
+    success_criteria: str | None = None
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class Deadline(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    track_id: int = Field(foreign_key='track.id')
+    title: str
+    due_at: datetime
+    type: str = 'personal'
+    importance: str = 'medium'
+    notes: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
 
 

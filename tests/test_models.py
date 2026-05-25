@@ -4,9 +4,9 @@ from studyops_core.models import EventLog, Track
 
 
 def test_track_has_required_fields():
-    track = Track(name='Calculus', type='course')
+    track = Track(title='Calculus', type='course')
 
-    assert track.name == 'Calculus'
+    assert track.title == 'Calculus'
     assert track.type == 'course'
 
 
