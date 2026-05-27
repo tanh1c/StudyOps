@@ -26,13 +26,9 @@ class NineRouterAdapter:
             )
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
-            return {
-                'status': 'unavailable',
-                'code': exc.response.status_code,
-                'detail': self._error_detail(exc.response),
-            }
+            return {'status': 'unavailable', **self.error_detail(exc.response)}
         except httpx.HTTPError as exc:
-            return {'status': 'unavailable', 'detail': str(exc)}
+            return {'status': 'unavailable', 'message': str(exc)}
 
         payload = response.json()
         return {'status': 'ok' if payload.get('ok') is True else 'unavailable', 'raw': payload}
@@ -111,7 +107,18 @@ class NineRouterAdapter:
         return urljoin(f'{self.base_url}/', path.lstrip('/'))
 
     @staticmethod
-    def _error_detail(response: httpx.Response) -> str:
+    def error_detail(response: httpx.Response) -> dict:
+        detail = {
+            'code': response.status_code,
+            'message': NineRouterAdapter._error_message(response),
+        }
+        retry_after = response.headers.get('retry-after')
+        if retry_after is not None:
+            detail['retry_after'] = retry_after
+        return detail
+
+    @staticmethod
+    def _error_message(response: httpx.Response) -> str:
         try:
             payload = response.json()
         except ValueError:

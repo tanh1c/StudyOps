@@ -47,7 +47,24 @@ def test_ninerouter_health_maps_http_error(monkeypatch):
 
     result = NineRouterAdapter(base_url='http://localhost:20128', api_key='bad-key').health_check()
 
-    assert result == {'status': 'unavailable', 'code': 401, 'detail': 'Unauthorized'}
+    assert result == {'status': 'unavailable', 'code': 401, 'message': 'Unauthorized'}
+
+
+def test_ninerouter_error_detail_includes_retry_after():
+    request = httpx.Request('POST', 'http://localhost:20128/v1/chat/completions')
+    response = httpx.Response(
+        503,
+        request=request,
+        headers={'retry-after': '30'},
+        json={'error': 'All accounts unavailable'},
+    )
+
+    assert NineRouterAdapter.error_detail(response) == {
+        'code': 503,
+        'message': 'All accounts unavailable',
+        'retry_after': '30',
+    }
+
 
 
 def test_ninerouter_list_models_uses_v1_models(monkeypatch):

@@ -51,11 +51,7 @@ def create_chat_completion(request: ChatCompletionRequest):
 def raise_router_error(exc: httpx.HTTPStatusError):
     raise HTTPException(
         status_code=502,
-        detail={
-            'status': 'unavailable',
-            'code': exc.response.status_code,
-            'message': NineRouterAdapter._error_detail(exc.response),
-        },
+        detail={'status': 'unavailable', **NineRouterAdapter.error_detail(exc.response)},
     ) from exc
 
 
