@@ -35,7 +35,9 @@ def upload_knowledge(track_id: int, payload: KnowledgeUpload, session: Session =
         source_uri=payload.source_uri,
         deeptutor_kb_id=kb['deeptutor_kb_id'],
         deeptutor_document_id=doc['deeptutor_document_id'],
+        deeptutor_task_id=doc.get('task_id'),
         status=doc['status'],
+        progress={'upload': doc.get('raw') or {}, 'task_id': doc.get('task_id')},
     )
     session.add(item)
     session.commit()
@@ -43,6 +45,24 @@ def upload_knowledge(track_id: int, payload: KnowledgeUpload, session: Session =
     item_data = item.model_dump()
     record_event(session, event_type='knowledge.uploaded', actor='user', payload={'track_id': track_id, 'knowledge_item_id': item.id})
     return item_data
+
+
+@router.get('/knowledge/{knowledge_item_id}/status')
+def refresh_knowledge_status(knowledge_item_id: int, session: Session = Depends(get_session)):
+    item = session.get(KnowledgeItem, knowledge_item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail='Knowledge item not found')
+    if item.deeptutor_kb_id:
+        result = get_deeptutor_adapter().get_document_progress(
+            kb_id=item.deeptutor_kb_id,
+            has_task=bool(item.deeptutor_task_id),
+        )
+        item.status = result['status']
+        item.progress = result['progress']
+        session.add(item)
+        session.commit()
+        session.refresh(item)
+    return item.model_dump()
 
 
 @router.post('/knowledge/{knowledge_item_id}/ask')

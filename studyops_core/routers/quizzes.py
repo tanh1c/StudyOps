@@ -29,6 +29,7 @@ def generate_quiz(track_id: int, payload: QuizGenerate, session: Session = Depen
         difficulty=payload.difficulty,
         question_count=payload.question_count,
         deeptutor_quiz_id=result['deeptutor_quiz_id'],
+        payload={'questions': result.get('questions') or [], 'raw': result.get('raw') or {}},
     )
     session.add(quiz)
     session.commit()
@@ -44,7 +45,15 @@ def attempt_quiz(quiz_id: int, payload: QuizAttemptCreate, session: Session = De
     if quiz is None:
         raise HTTPException(status_code=404, detail='Quiz not found')
 
-    result = get_deeptutor_adapter().grade_quiz({'deeptutor_quiz_id': quiz.deeptutor_quiz_id, 'answers': payload.answers})
+    result = get_deeptutor_adapter().grade_quiz(
+        {
+            'deeptutor_quiz_id': quiz.deeptutor_quiz_id,
+            'answers': payload.answers,
+            'questions': (quiz.payload or {}).get('questions') or [],
+            'topic_tags': quiz.topic_tags,
+            'language': (quiz.payload or {}).get('language') or 'vi',
+        }
+    )
     attempt = QuizAttempt(
         quiz_id=quiz.id,
         track_id=quiz.track_id,

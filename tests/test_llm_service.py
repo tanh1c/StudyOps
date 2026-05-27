@@ -1,3 +1,4 @@
+from studyops_core.config import settings
 from studyops_core.services.llm import chat_with_model, extract_assistant_text
 
 
@@ -38,7 +39,7 @@ def test_chat_with_model_uses_default_chat_model():
 
     assert adapter.calls == [
         {
-            'model': 'openai/gpt-4o-mini',
+            'model': settings.ninerouter_default_chat_model,
             'messages': [{'role': 'user', 'content': 'Tạo kế hoạch học'}],
             'temperature': 0.3,
             'max_tokens': 256,

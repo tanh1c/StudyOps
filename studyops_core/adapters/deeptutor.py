@@ -72,6 +72,12 @@ class DeepTutorAdapter:
             'raw': result,
         }
 
+    def get_document_progress(self, *, kb_id: str, has_task: bool = True) -> dict:
+        response = httpx.get(self._url(f'/api/v1/knowledge/{kb_id}/progress'), timeout=self.timeout)
+        response.raise_for_status()
+        progress = response.json()
+        return {'status': self._normalize_progress_status(progress, has_task=has_task), 'progress': progress}
+
     def ask_document(self, *, kb_id: str, question: str, language: str) -> dict:
         try:
             return asyncio.run(self.ask_document_ws(kb_id=kb_id, question=question, language=language))
@@ -138,17 +144,84 @@ class DeepTutorAdapter:
         }
 
     def grade_quiz(self, payload: dict) -> dict:
-        answers = payload.get('answers') or {}
-        total_count = max(len(answers), 1)
+        answers = self._normalize_submitted_answers(payload.get('answers') or [])
+        questions = self._normalize_quiz_questions(payload.get('questions') or payload.get('quiz_payload', {}).get('questions') or [])
+        questions_by_id = {question['id']: question for question in questions}
+        language = self._judge_language(payload.get('language') or 'vi')
+        topic_tags = payload.get('topic_tags') or []
+        results = []
+
+        for answer in answers:
+            question = questions_by_id.get(answer['question_id'], {'id': answer['question_id'], 'topic_tags': topic_tags})
+            try:
+                feedback = asyncio.run(
+                    self.judge_quiz_answer_ws(
+                        question=question,
+                        user_answer=answer['answer'],
+                        language=language,
+                    )
+                )
+                verdict = self._infer_judge_verdict(feedback)
+            except Exception as exc:
+                feedback = f'DeepTutor quiz judge unavailable: {exc}'
+                verdict = 'needs_review'
+            results.append(
+                {
+                    'question_id': answer['question_id'],
+                    'verdict': verdict,
+                    'score': self._verdict_score(verdict),
+                    'feedback': feedback,
+                    'topic_tags': question.get('topic_tags') or topic_tags,
+                }
+            )
+
+        total_count = len(results)
+        correct_count = sum(1 for result in results if result['verdict'] == 'correct')
+        score = round(sum(result['score'] for result in results) / total_count * 100, 2) if total_count else 0
+        mistake_topic_tags = sorted(
+            {
+                tag
+                for result in results
+                if result['verdict'] != 'correct'
+                for tag in (result.get('topic_tags') or [])
+            }
+        )
         return {
             'deeptutor_attempt_id': payload.get('deeptutor_quiz_id') or 'deeptutor_attempt',
-            'score': 0,
-            'correct_count': 0,
+            'score': score,
+            'correct_count': correct_count,
             'total_count': total_count,
-            'question_results': [],
-            'mistake_topic_tags': list(answers.keys()),
-            'feedback_summary': 'DeepTutor AI judging is available through its quiz judge WebSocket; StudyOps stores submitted answers for now.',
+            'question_results': results,
+            'mistake_topic_tags': mistake_topic_tags,
+            'feedback_summary': self._feedback_summary(results),
         }
+
+    async def judge_quiz_answer_ws(self, *, question: dict, user_answer: str, language: str) -> str:
+        async with websockets.connect(self._ws_url('/api/v1/question/judge')) as websocket:
+            await websocket.send(
+                json.dumps(
+                    {
+                        'question': question.get('question') or '',
+                        'question_type': question.get('question_type') or '',
+                        'options': question.get('options') or None,
+                        'correct_answer': question.get('correct_answer') or '',
+                        'explanation': question.get('explanation') or '',
+                        'user_answer': user_answer,
+                        'language': language,
+                    }
+                )
+            )
+            feedback = ''
+            while True:
+                event = json.loads(await websocket.recv())
+                event_type = event.get('type')
+                if event_type == 'text':
+                    feedback += event.get('content') or ''
+                elif event_type == 'done':
+                    return feedback.strip()
+                elif event_type == 'error':
+                    raise RuntimeError(event.get('content') or 'DeepTutor quiz judge failed')
+
 
     def _run_cli_json(self, command: list[str]) -> dict:
         if not self.cli_enabled:
@@ -172,6 +245,79 @@ class DeepTutorAdapter:
             'session_id': output.get('session_id'),
             'raw': output,
         }
+
+    @staticmethod
+    def _normalize_submitted_answers(answers: list[dict] | dict) -> list[dict[str, str]]:
+        if isinstance(answers, dict):
+            iterable = [{'question_id': key, 'answer': value} for key, value in answers.items()]
+        else:
+            iterable = answers
+        normalized = []
+        for index, answer in enumerate(iterable):
+            if not isinstance(answer, dict):
+                continue
+            question_id = answer.get('question_id') or answer.get('id') or answer.get('questionId') or f'q{index + 1}'
+            normalized.append({'question_id': str(question_id), 'answer': str(answer.get('answer') or answer.get('value') or '')})
+        return normalized
+
+    @staticmethod
+    def _normalize_quiz_questions(questions: list[dict]) -> list[dict]:
+        normalized = []
+        for index, question in enumerate(questions):
+            if not isinstance(question, dict):
+                continue
+            question_id = question.get('id') or question.get('question_id') or question.get('questionId') or f'q{index + 1}'
+            normalized.append(
+                {
+                    'id': str(question_id),
+                    'question': question.get('question') or question.get('stem') or question.get('prompt') or question.get('text') or '',
+                    'question_type': question.get('question_type') or question.get('type') or '',
+                    'options': question.get('options') or question.get('choices') or None,
+                    'correct_answer': question.get('correct_answer') or question.get('answer') or question.get('correctAnswer') or '',
+                    'explanation': question.get('explanation') or question.get('rationale') or question.get('solution') or '',
+                    'topic_tags': question.get('topic_tags') or question.get('tags') or [],
+                }
+            )
+        return normalized
+
+    @staticmethod
+    def _judge_language(language: str) -> str:
+        return 'zh' if language == 'zh' else 'en'
+
+    @staticmethod
+    def _infer_judge_verdict(feedback: str) -> str:
+        text = feedback.lower()
+        if any(marker in text for marker in ['❌', 'incorrect', 'not correct', 'không đúng', 'sai']):
+            return 'incorrect'
+        if any(marker in text for marker in ['⚠', 'partially correct', 'partial', 'một phần']):
+            return 'partial'
+        if any(marker in text for marker in ['✅', 'correct', 'đúng']):
+            return 'correct'
+        return 'needs_review'
+
+    @staticmethod
+    def _verdict_score(verdict: str) -> float:
+        return {'correct': 1.0, 'partial': 0.5}.get(verdict, 0.0)
+
+    @staticmethod
+    def _feedback_summary(results: list[dict]) -> str:
+        if not results:
+            return 'No answers were submitted.'
+        return '\n\n'.join(
+            f"{result['question_id']}: {result['verdict']} — {result['feedback']}" for result in results
+        )
+
+    @staticmethod
+    def _normalize_progress_status(progress: dict, *, has_task: bool) -> str:
+        stage = str(progress.get('stage') or '').lower()
+        status = str(progress.get('status') or '').lower()
+        if stage == 'completed' or status in {'ready', 'success', 'completed'}:
+            return 'ready'
+        if stage == 'error' or status in {'error', 'failed'}:
+            return 'error'
+        if status == 'not_started':
+            return 'processing' if has_task else 'pending'
+        return 'processing'
 
     @staticmethod
     def _kb_name(track: dict) -> str:

@@ -5,10 +5,24 @@ from studyops_core.routers import quizzes
 
 
 class StubDeepTutorAdapter:
+    last_grade_payload = None
+
     def generate_quiz(self, payload):
-        return {'deeptutor_quiz_id': 'dt_quiz_mock', 'questions': [{'id': 'q1'}]}
+        return {
+            'deeptutor_quiz_id': 'dt_quiz_mock',
+            'questions': [
+                {
+                    'id': 'q1',
+                    'question': 'Apriori là gì?',
+                    'correct_answer': 'Thuật toán khai phá luật kết hợp.',
+                    'topic_tags': ['apriori'],
+                }
+            ],
+            'raw': {'session_id': 'dt_quiz_mock'},
+        }
 
     def grade_quiz(self, payload):
+        StubDeepTutorAdapter.last_grade_payload = payload
         return {
             'deeptutor_attempt_id': 'dt_attempt_mock',
             'score': 55,
@@ -38,4 +52,6 @@ def test_generate_and_attempt_quiz_updates_weak_topic(client_session, monkeypatc
     assert attempt_response.status_code == 200
     attempt = attempt_response.json()
     assert attempt['score'] == 55
+    assert StubDeepTutorAdapter.last_grade_payload['questions'][0]['question'] == 'Apriori là gì?'
+    assert StubDeepTutorAdapter.last_grade_payload['topic_tags'] == ['apriori']
     assert attempt['weak_topics_updated']

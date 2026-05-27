@@ -58,7 +58,9 @@ class KnowledgeItem(SQLModel, table=True):
     source_uri: str | None = None
     deeptutor_kb_id: str | None = None
     deeptutor_document_id: str | None = None
+    deeptutor_task_id: str | None = None
     status: str = 'pending'
+    progress: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=utc_now)
 
 
@@ -71,6 +73,7 @@ class Quiz(SQLModel, table=True):
     difficulty: str = 'medium'
     question_count: int = 10
     deeptutor_quiz_id: str | None = None
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=utc_now)
 
 
