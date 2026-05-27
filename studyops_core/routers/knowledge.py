@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
-from studyops_core.adapters.mock import MockDeepTutorAdapter
+from studyops_core.adapters.deeptutor import DeepTutorAdapter
 from studyops_core.deps import get_session
 from studyops_core.models import KnowledgeItem, Track
 from studyops_core.schemas import KnowledgeAsk, KnowledgeUpload
@@ -10,13 +10,17 @@ from studyops_core.services.events import record_event
 router = APIRouter()
 
 
+def get_deeptutor_adapter():
+    return DeepTutorAdapter()
+
+
 @router.post('/tracks/{track_id}/knowledge/upload')
 def upload_knowledge(track_id: int, payload: KnowledgeUpload, session: Session = Depends(get_session)):
     track = session.get(Track, track_id)
     if track is None:
         raise HTTPException(status_code=404, detail='Track not found')
 
-    adapter = MockDeepTutorAdapter()
+    adapter = get_deeptutor_adapter()
     kb = adapter.create_or_get_kb(track.model_dump())
     doc = adapter.upload_document(
         track_id=str(track_id),
@@ -49,7 +53,7 @@ def ask_knowledge(knowledge_item_id: int, payload: KnowledgeAsk, session: Sessio
     if item.status != 'ready':
         raise HTTPException(status_code=409, detail='Knowledge item is not ready')
 
-    result = MockDeepTutorAdapter().ask_document(
+    result = get_deeptutor_adapter().ask_document(
         kb_id=item.deeptutor_kb_id or '',
         question=payload.question,
         language=payload.language,

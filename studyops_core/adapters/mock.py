@@ -1,4 +1,7 @@
 class MockDeepTutorAdapter:
+    def health_check(self) -> dict:
+        return {'status': 'ok'}
+
     def create_or_get_kb(self, track: dict) -> dict:
         return {'deeptutor_kb_id': f"dt_kb_{track['id']}"}
 

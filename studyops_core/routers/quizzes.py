@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
-from studyops_core.adapters.mock import MockDeepTutorAdapter
+from studyops_core.adapters.deeptutor import DeepTutorAdapter
 from studyops_core.deps import get_session
 from studyops_core.models import Quiz, QuizAttempt, Track
 from studyops_core.schemas import QuizAttemptCreate, QuizGenerate
@@ -11,12 +11,16 @@ from studyops_core.services.weak_topics import update_weak_topics_from_quiz
 router = APIRouter()
 
 
+def get_deeptutor_adapter():
+    return DeepTutorAdapter()
+
+
 @router.post('/tracks/{track_id}/quizzes/generate')
 def generate_quiz(track_id: int, payload: QuizGenerate, session: Session = Depends(get_session)):
     if session.get(Track, track_id) is None:
         raise HTTPException(status_code=404, detail='Track not found')
 
-    result = MockDeepTutorAdapter().generate_quiz(payload.model_dump())
+    result = get_deeptutor_adapter().generate_quiz(payload.model_dump())
     quiz = Quiz(
         track_id=track_id,
         title='Generated quiz',
@@ -40,7 +44,7 @@ def attempt_quiz(quiz_id: int, payload: QuizAttemptCreate, session: Session = De
     if quiz is None:
         raise HTTPException(status_code=404, detail='Quiz not found')
 
-    result = MockDeepTutorAdapter().grade_quiz({'deeptutor_quiz_id': quiz.deeptutor_quiz_id, 'answers': payload.answers})
+    result = get_deeptutor_adapter().grade_quiz({'deeptutor_quiz_id': quiz.deeptutor_quiz_id, 'answers': payload.answers})
     attempt = QuizAttempt(
         quiz_id=quiz.id,
         track_id=quiz.track_id,
