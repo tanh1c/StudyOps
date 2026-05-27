@@ -106,7 +106,7 @@ def test_deeptutor_upload_document_posts_to_existing_kb(monkeypatch, tmp_path: P
     assert result['task_id'] == 'task-2'
 
 
-def test_deeptutor_ask_document_uses_cli_json(monkeypatch):
+def test_deeptutor_ask_document_cli_uses_cli_json(monkeypatch):
     captured = {}
 
     def fake_run(command, capture_output, text, check, timeout):
@@ -115,7 +115,7 @@ def test_deeptutor_ask_document_uses_cli_json(monkeypatch):
 
     monkeypatch.setattr(subprocess, 'run', fake_run)
 
-    result = DeepTutorAdapter(base_url='http://localhost:8001').ask_document(
+    result = DeepTutorAdapter(base_url='http://localhost:8001').ask_document_cli(
         kb_id='studyops-7-data-mining', question='Apriori là gì?', language='vi'
     )
 
@@ -135,6 +135,56 @@ def test_deeptutor_ask_document_uses_cli_json(monkeypatch):
     ]
     assert result['answer'] == 'Apriori là thuật toán...'
     assert result['citations'] == [{'title': 'lecture'}]
+
+
+def test_deeptutor_ask_document_uses_websocket(monkeypatch):
+    sent_messages = []
+
+    class FakeWebSocket:
+        def __init__(self):
+            self.events = iter(
+                [
+                    {'type': 'session', 'session_id': 'session-1'},
+                    {'type': 'stream', 'content': 'Apriori '},
+                    {'type': 'sources', 'rag': [{'title': 'Lecture'}], 'web': []},
+                    {'type': 'result', 'content': 'Apriori là thuật toán.'},
+                ]
+            )
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def send(self, message):
+            sent_messages.append(json.loads(message))
+
+        async def recv(self):
+            return json.dumps(next(self.events))
+
+    monkeypatch.setattr('studyops_core.adapters.deeptutor.websockets.connect', lambda url: FakeWebSocket())
+
+    result = DeepTutorAdapter(base_url='http://localhost:8001').ask_document(
+        kb_id='studyops-7-data-mining', question='Apriori là gì?', language='vi'
+    )
+
+    assert sent_messages == [
+        {
+            'message': 'Apriori là gì?',
+            'kb_name': 'studyops-7-data-mining',
+            'enable_rag': True,
+            'enable_web_search': False,
+            'language': 'vi',
+        }
+    ]
+    assert result == {
+        'answer': 'Apriori là thuật toán.',
+        'citations': [{'title': 'Lecture'}],
+        'session_id': 'session-1',
+        'raw': {'sources': {'rag': [{'title': 'Lecture'}], 'web': []}},
+    }
+
 
 
 def test_deeptutor_generate_quiz_uses_deep_question_cli(monkeypatch):
@@ -166,4 +216,4 @@ def test_deeptutor_generate_quiz_uses_deep_question_cli(monkeypatch):
 
 def test_deeptutor_cli_can_be_disabled():
     with pytest.raises(RuntimeError, match='disabled'):
-        DeepTutorAdapter(cli_enabled=False).ask_document(kb_id='kb', question='q', language='vi')
+        DeepTutorAdapter(cli_enabled=False)._run_cli_json(['deeptutor', 'run', 'chat', 'q'])

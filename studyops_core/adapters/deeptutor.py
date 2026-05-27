@@ -1,9 +1,12 @@
+import asyncio
 import json
 from pathlib import Path
 import re
 import subprocess
+from urllib.parse import urlparse
 
 import httpx
+import websockets
 
 from studyops_core.config import settings
 
@@ -70,15 +73,48 @@ class DeepTutorAdapter:
         }
 
     def ask_document(self, *, kb_id: str, question: str, language: str) -> dict:
+        try:
+            return asyncio.run(self.ask_document_ws(kb_id=kb_id, question=question, language=language))
+        except Exception:
+            return self.ask_document_cli(kb_id=kb_id, question=question, language=language)
+
+    def ask_document_cli(self, *, kb_id: str, question: str, language: str) -> dict:
         output = self._run_cli_json(
             ['deeptutor', 'run', 'chat', question, '--kb', kb_id, '--tool', 'rag', '--language', language, '--format', 'json']
         )
-        return {
-            'answer': output.get('content') or output.get('answer') or output.get('response') or '',
-            'citations': output.get('citations') or output.get('sources') or [],
-            'session_id': output.get('session_id'),
-            'raw': output,
-        }
+        return self._normalize_answer(output)
+
+    async def ask_document_ws(self, *, kb_id: str, question: str, language: str) -> dict:
+        async with websockets.connect(self._ws_url('/api/v1/chat')) as websocket:
+            await websocket.send(
+                json.dumps(
+                    {
+                        'message': question,
+                        'kb_name': kb_id,
+                        'enable_rag': True,
+                        'enable_web_search': False,
+                        'language': language,
+                    }
+                )
+            )
+            answer = ''
+            session_id = None
+            sources = {'rag': [], 'web': []}
+            while True:
+                event = json.loads(await websocket.recv())
+                event_type = event.get('type')
+                if event_type == 'session':
+                    session_id = event.get('session_id')
+                elif event_type == 'stream':
+                    answer += event.get('content') or ''
+                elif event_type == 'sources':
+                    sources = {'rag': event.get('rag') or [], 'web': event.get('web') or []}
+                elif event_type == 'result':
+                    answer = event.get('content') or answer
+                    break
+                elif event_type == 'error':
+                    raise RuntimeError(event.get('message') or 'DeepTutor chat failed')
+            return {'answer': answer, 'citations': sources.get('rag') or [], 'session_id': session_id, 'raw': {'sources': sources}}
 
     def generate_quiz(self, payload: dict) -> dict:
         topic = ', '.join(payload.get('topic_tags') or []) or 'general review'
@@ -122,6 +158,20 @@ class DeepTutorAdapter:
 
     def _url(self, path: str) -> str:
         return f'{self.base_url}/{path.lstrip("/")}'
+
+    def _ws_url(self, path: str) -> str:
+        parsed = urlparse(self._url(path))
+        scheme = 'wss' if parsed.scheme == 'https' else 'ws'
+        return parsed._replace(scheme=scheme).geturl()
+
+    @staticmethod
+    def _normalize_answer(output: dict) -> dict:
+        return {
+            'answer': output.get('content') or output.get('answer') or output.get('response') or '',
+            'citations': output.get('citations') or output.get('sources') or [],
+            'session_id': output.get('session_id'),
+            'raw': output,
+        }
 
     @staticmethod
     def _kb_name(track: dict) -> str:
