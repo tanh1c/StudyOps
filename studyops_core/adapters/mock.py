@@ -87,3 +87,26 @@ class MockRouterAdapter:
             'stt': [],
             'image_to_text': [],
         }
+
+    def create_chat_completion(
+        self,
+        *,
+        model: str,
+        messages: list[dict],
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> dict:
+        return {
+            'id': 'chatcmpl_mock',
+            'model': model,
+            'choices': [
+                {
+                    'index': 0,
+                    'message': {
+                        'role': 'assistant',
+                        'content': f"Mock response to: {messages[-1]['content']}",
+                    },
+                    'finish_reason': 'stop',
+                }
+            ],
+        }

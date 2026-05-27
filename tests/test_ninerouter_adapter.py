@@ -96,3 +96,65 @@ def test_ninerouter_list_model_groups_calls_all_model_endpoints(monkeypatch):
         'stt': [{'id': 'stt-model'}],
         'image_to_text': [{'id': 'image-to-text-model'}],
     }
+
+
+def test_ninerouter_create_chat_completion_posts_openai_payload(monkeypatch):
+    captured = {}
+
+    def fake_post(url, headers, json, timeout):
+        captured['url'] = url
+        captured['headers'] = headers
+        captured['json'] = json
+        captured['timeout'] = timeout
+        request = httpx.Request('POST', url)
+        return httpx.Response(
+            200,
+            request=request,
+            json={
+                'id': 'chatcmpl_1',
+                'choices': [{'message': {'role': 'assistant', 'content': 'Xin chào'}}],
+            },
+        )
+
+    monkeypatch.setattr(httpx, 'post', fake_post)
+
+    result = NineRouterAdapter(base_url='http://localhost:20128', api_key='sk-test').create_chat_completion(
+        model='openai/gpt-4o-mini',
+        messages=[{'role': 'user', 'content': 'Chào'}],
+        temperature=0.2,
+        max_tokens=128,
+    )
+
+    assert captured == {
+        'url': 'http://localhost:20128/v1/chat/completions',
+        'headers': {'Authorization': 'Bearer sk-test'},
+        'json': {
+            'model': 'openai/gpt-4o-mini',
+            'messages': [{'role': 'user', 'content': 'Chào'}],
+            'temperature': 0.2,
+            'max_tokens': 128,
+        },
+        'timeout': 5.0,
+    }
+    assert result['choices'][0]['message']['content'] == 'Xin chào'
+
+
+def test_ninerouter_create_chat_completion_omits_optional_fields(monkeypatch):
+    captured = {}
+
+    def fake_post(url, headers, json, timeout):
+        captured['json'] = json
+        request = httpx.Request('POST', url)
+        return httpx.Response(200, request=request, json={'choices': []})
+
+    monkeypatch.setattr(httpx, 'post', fake_post)
+
+    NineRouterAdapter(base_url='http://localhost:20128', api_key=None).create_chat_completion(
+        model='openai/gpt-4o-mini',
+        messages=[{'role': 'user', 'content': 'Chào'}],
+    )
+
+    assert captured['json'] == {
+        'model': 'openai/gpt-4o-mini',
+        'messages': [{'role': 'user', 'content': 'Chào'}],
+    }

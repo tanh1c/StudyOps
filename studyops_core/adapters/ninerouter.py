@@ -69,6 +69,29 @@ class NineRouterAdapter:
             'image_to_text': self.list_image_to_text_models()['models'],
         }
 
+    def create_chat_completion(
+        self,
+        *,
+        model: str,
+        messages: list[dict],
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> dict:
+        payload = {'model': model, 'messages': messages}
+        if temperature is not None:
+            payload['temperature'] = temperature
+        if max_tokens is not None:
+            payload['max_tokens'] = max_tokens
+
+        response = httpx.post(
+            self._url('/v1/chat/completions'),
+            headers=self._headers(),
+            json=payload,
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+        return response.json()
+
     def _list_models(self, path: str) -> dict:
         response = httpx.get(
             self._url(path),
