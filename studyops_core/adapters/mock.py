@@ -73,3 +73,6 @@ class MockHermesAdapter:
 class MockRouterAdapter:
     def health_check(self) -> dict:
         return {'status': 'ok', 'models': ['mock-model']}
+
+    def list_models(self) -> dict:
+        return {'models': [{'id': 'mock-model'}]}

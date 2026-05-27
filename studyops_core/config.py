@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     deeptutor_base_url: str = 'http://localhost:8001'
     hermes_base_url: str = 'http://localhost:9000'
     router_base_url: str = 'http://localhost:20128/v1'
+    ninerouter_url: str = 'http://localhost:20128'
+    ninerouter_key: str | None = None
 
 
 settings = Settings()
