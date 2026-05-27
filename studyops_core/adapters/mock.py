@@ -76,3 +76,14 @@ class MockRouterAdapter:
 
     def list_models(self) -> dict:
         return {'models': [{'id': 'mock-model'}]}
+
+    def list_model_groups(self) -> dict:
+        return {
+            'chat': [{'id': 'mock-model'}],
+            'image': [],
+            'tts': [],
+            'embedding': [],
+            'web': [],
+            'stt': [],
+            'image_to_text': [],
+        }

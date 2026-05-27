@@ -38,8 +38,40 @@ class NineRouterAdapter:
         return {'status': 'ok' if payload.get('ok') is True else 'unavailable', 'raw': payload}
 
     def list_models(self) -> dict:
+        return self._list_models('/v1/models')
+
+    def list_image_models(self) -> dict:
+        return self._list_models('/v1/models/image')
+
+    def list_tts_models(self) -> dict:
+        return self._list_models('/v1/models/tts')
+
+    def list_embedding_models(self) -> dict:
+        return self._list_models('/v1/models/embedding')
+
+    def list_web_models(self) -> dict:
+        return self._list_models('/v1/models/web')
+
+    def list_stt_models(self) -> dict:
+        return self._list_models('/v1/models/stt')
+
+    def list_image_to_text_models(self) -> dict:
+        return self._list_models('/v1/models/image-to-text')
+
+    def list_model_groups(self) -> dict:
+        return {
+            'chat': self.list_models()['models'],
+            'image': self.list_image_models()['models'],
+            'tts': self.list_tts_models()['models'],
+            'embedding': self.list_embedding_models()['models'],
+            'web': self.list_web_models()['models'],
+            'stt': self.list_stt_models()['models'],
+            'image_to_text': self.list_image_to_text_models()['models'],
+        }
+
+    def _list_models(self, path: str) -> dict:
         response = httpx.get(
-            self._url('/v1/models'),
+            self._url(path),
             headers=self._headers(),
             timeout=self.timeout,
         )

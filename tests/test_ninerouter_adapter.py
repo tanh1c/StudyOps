@@ -61,3 +61,38 @@ def test_ninerouter_list_models_uses_v1_models(monkeypatch):
     result = NineRouterAdapter(base_url='http://localhost:20128', api_key=None).list_models()
 
     assert result['models'] == [{'id': 'openai/gpt-4o-mini'}]
+
+
+def test_ninerouter_list_model_groups_calls_all_model_endpoints(monkeypatch):
+    captured_urls = []
+
+    def fake_get(url, headers, timeout):
+        captured_urls.append(url)
+        request = httpx.Request('GET', url)
+        model_id = url.rsplit('/', 1)[-1]
+        if url.endswith('/v1/models'):
+            model_id = 'chat'
+        return httpx.Response(200, request=request, json={'data': [{'id': f'{model_id}-model'}]})
+
+    monkeypatch.setattr(httpx, 'get', fake_get)
+
+    result = NineRouterAdapter(base_url='http://localhost:20128', api_key=None).list_model_groups()
+
+    assert captured_urls == [
+        'http://localhost:20128/v1/models',
+        'http://localhost:20128/v1/models/image',
+        'http://localhost:20128/v1/models/tts',
+        'http://localhost:20128/v1/models/embedding',
+        'http://localhost:20128/v1/models/web',
+        'http://localhost:20128/v1/models/stt',
+        'http://localhost:20128/v1/models/image-to-text',
+    ]
+    assert result == {
+        'chat': [{'id': 'chat-model'}],
+        'image': [{'id': 'image-model'}],
+        'tts': [{'id': 'tts-model'}],
+        'embedding': [{'id': 'embedding-model'}],
+        'web': [{'id': 'web-model'}],
+        'stt': [{'id': 'stt-model'}],
+        'image_to_text': [{'id': 'image-to-text-model'}],
+    }
