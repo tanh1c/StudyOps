@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     deeptutor_cli_enabled: bool = True
     deeptutor_rag_retrieval_profile: str = 'hybrid'
     hermes_base_url: str = 'http://localhost:9000'
+    hermes_enabled: bool = False
+    hermes_timeout_seconds: float = 120.0
     router_base_url: str = 'http://localhost:20128/v1'
     ninerouter_url: str = 'http://localhost:20128'
     ninerouter_key: str | None = None

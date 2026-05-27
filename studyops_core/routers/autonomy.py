@@ -4,7 +4,7 @@ from sqlmodel import Session, select
 from studyops_core.deps import get_session
 from studyops_core.models import AgentProposal
 from studyops_core.schemas import AutonomyRunRequest
-from studyops_core.services.autonomy import run_daily_checkin, run_weekly_review
+from studyops_core.services.autonomy import run_daily_checkin, run_plan_rebalance, run_weekly_review
 from studyops_core.services.events import record_event
 
 router = APIRouter()
@@ -21,6 +21,11 @@ def run_autonomy_job(payload: AutonomyRunRequest, session: Session = Depends(get
         job = run_weekly_review(session=session, reason=payload.reason)
         job_data = job.model_dump()
         record_event(session, event_type='weekly_review.completed', actor='hermes', payload={'user_id': job.user_id, 'job_id': job.id})
+        return job_data
+    if payload.job_type == 'plan_rebalance':
+        job = run_plan_rebalance(session=session, instruction=payload.reason, reason=payload.reason)
+        job_data = job.model_dump()
+        record_event(session, event_type='plan_rebalance.completed', actor='hermes', payload={'user_id': job.user_id, 'job_id': job.id})
         return job_data
     raise HTTPException(status_code=400, detail='Unsupported job type')
 

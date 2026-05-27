@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from studyops_core.config import settings
 from studyops_core.main import app
 from studyops_core.services import autonomy
 
@@ -18,6 +19,20 @@ def test_run_daily_checkin_creates_job(client_session, monkeypatch):
     assert data['job_type'] == 'daily_checkin'
     assert data['status'] == 'succeeded'
     assert data['output_summary'] == 'Hôm nay hãy ôn Data Mining.'
+
+
+def test_daily_checkin_uses_hermes_when_enabled(client_session, monkeypatch):
+    class StubHermesAdapter:
+        def run_daily_checkin(self, snapshot):
+            return {'job_summary': 'Hermes daily', 'messages': [], 'proposals': []}
+
+    monkeypatch.setattr(settings, 'hermes_enabled', True)
+    monkeypatch.setattr(autonomy, 'get_hermes_adapter', lambda: StubHermesAdapter())
+    client = TestClient(app)
+    response = client.post('/autonomy/jobs/run', json={'job_type': 'daily_checkin', 'reason': 'manual_run'})
+
+    assert response.status_code == 200
+    assert response.json()['output_summary'] == 'Hermes daily'
 
 
 def test_run_llm_daily_checkin_uses_llm_service(monkeypatch):
