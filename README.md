@@ -43,3 +43,29 @@ Implemented 9Router capabilities:
 - 9Router-backed StudyOps LLM service for mentor flows
 - Daily check-in mentor summaries through the 9Router-backed LLM service
 - Upstream error mapping for `401`, invalid model errors, and `503` with `retry-after`
+
+## DeepTutor integration
+
+StudyOps uses DeepTutor at `DEEPTUTOR_BASE_URL` for Knowledge Base operations and RAG-backed study questions.
+
+```bash
+DEEPTUTOR_BASE_URL=http://localhost:8001
+DEEPTUTOR_CLI_ENABLED=true
+```
+
+Start DeepTutor separately before using real document/RAG flows:
+
+```bash
+deeptutor serve --port 8001
+```
+
+Implemented DeepTutor capabilities:
+
+- `GET /api/v1/knowledge/health` via `/health/services`
+- `GET /api/v1/knowledge/{kb_name}` for KB lookup
+- `POST /api/v1/knowledge/create` for first document upload into a KB
+- `POST /api/v1/knowledge/{kb_name}/upload` for incremental document uploads
+- WebSocket `/api/v1/chat` for RAG-backed document questions
+- CLI fallback for `deeptutor run chat ... --tool rag --format json`
+- CLI-backed quiz generation through `deeptutor run deep_question ... --format json`
+- StudyOps quiz attempt persistence and weak-topic updates while DeepTutor AI judge remains WebSocket-only upstream
