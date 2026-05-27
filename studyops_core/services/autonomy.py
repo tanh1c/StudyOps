@@ -4,6 +4,7 @@ from sqlmodel import Session, select
 
 from studyops_core.adapters.mock import MockHermesAdapter
 from studyops_core.models import AutonomyJob, Track
+from studyops_core.services import llm
 from studyops_core.services.proposals import create_proposal_with_policy
 
 
@@ -23,7 +24,7 @@ def run_daily_checkin(*, session: Session, user_id: str = 'usr_local', reason: s
 
     tracks = session.exec(select(Track)).all()
     snapshot = {'active_tracks': [track.model_dump() for track in tracks]}
-    output = MockHermesAdapter().run_daily_checkin(snapshot)
+    output = run_llm_daily_checkin(snapshot)
 
     job.input_snapshot = snapshot
     job.output = output
@@ -34,6 +35,25 @@ def run_daily_checkin(*, session: Session, user_id: str = 'usr_local', reason: s
     session.commit()
     session.refresh(job)
     return job
+
+
+def run_llm_daily_checkin(snapshot: dict) -> dict:
+    completion = llm.chat_with_model(
+        messages=[
+            {
+                'role': 'system',
+                'content': 'Bạn là StudyOps Mentor. Trả lời ngắn gọn bằng tiếng Việt, tập trung vào kế hoạch học hôm nay.',
+            },
+            {
+                'role': 'user',
+                'content': f'Tạo daily check-in dựa trên snapshot này: {snapshot}',
+            },
+        ],
+        temperature=0.3,
+        max_tokens=500,
+    )
+    return {'job_summary': llm.extract_assistant_text(completion), 'messages': [], 'proposals': []}
+
 
 
 def run_weekly_review(*, session: Session, user_id: str = 'usr_local', reason: str = 'manual_run') -> AutonomyJob:
